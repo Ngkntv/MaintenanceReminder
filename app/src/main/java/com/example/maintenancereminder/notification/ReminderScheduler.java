@@ -4,6 +4,7 @@ import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.util.Log;
 
@@ -44,11 +45,29 @@ public class ReminderScheduler {
 
             Log.d("REMINDER", "scheduleAt(): req=" + requestCode + " trigger=" + trigger + " now=" + now);
 
-            // Для теста и демо на API 35 нужно EXACT, иначе система может сдвинуть
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi);
+            // Если exact alarm запрещен (Android 12+), используем inexact fallback,
+            // чтобы напоминание все равно дошло.
+            boolean canUseExact = true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                canUseExact = am.canScheduleExactAlarms()
+                        || context.checkSelfPermission(android.Manifest.permission.SCHEDULE_EXACT_ALARM)
+                        == PackageManager.PERMISSION_GRANTED;
+            }
+
+            if (canUseExact) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi);
+                } else {
+                    am.setExact(AlarmManager.RTC_WAKEUP, trigger, pi);
+                }
+                Log.d("REMINDER", "Exact alarm scheduled. req=" + requestCode);
             } else {
-                am.setExact(AlarmManager.RTC_WAKEUP, trigger, pi);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi);
+                } else {
+                    am.set(AlarmManager.RTC_WAKEUP, trigger, pi);
+                }
+                Log.w("REMINDER", "Exact alarms are not allowed. Scheduled inexact fallback. req=" + requestCode);
             }
 
         } catch (SecurityException se) {

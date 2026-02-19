@@ -1,9 +1,19 @@
 package com.example.maintenancereminder;
 
+import android.Manifest;
+import android.app.AlarmManager;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
+import android.provider.Settings;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.example.maintenancereminder.db.EquipmentDao;
@@ -22,6 +32,10 @@ public class MainActivity extends AppCompatActivity {
     private EquipmentDao dao;
     private RecyclerView recyclerView;
     private EquipmentAdapter adapter;
+    private final ActivityResultLauncher<String> notificationsPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                // Разрешение необязательное, но без него нотификации на Android 13+ не покажутся.
+            });
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -49,6 +63,9 @@ public class MainActivity extends AppCompatActivity {
 
         FloatingActionButton fab = findViewById(R.id.fabAdd);
         fab.setOnClickListener(view -> startActivity(new Intent(MainActivity.this, AddEquipmentActivity.class)));
+
+        requestNotificationPermissionIfNeeded();
+        requestExactAlarmPermissionIfNeeded();
     }
 
     @Override
@@ -63,5 +80,24 @@ public class MainActivity extends AppCompatActivity {
     private void loadData() {
         List<Equipment> list = dao.getAll();
         adapter.setItems(list);
+    }
+
+    private void requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        notificationsPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+    }
+
+    private void requestExactAlarmPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return;
+        AlarmManager alarmManager = getSystemService(AlarmManager.class);
+        if (alarmManager != null && alarmManager.canScheduleExactAlarms()) return;
+
+        Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+        intent.setData(Uri.parse("package:" + getPackageName()));
+        startActivity(intent);
     }
 }

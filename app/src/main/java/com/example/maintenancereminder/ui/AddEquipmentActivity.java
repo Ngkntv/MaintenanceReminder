@@ -185,11 +185,6 @@ public class AddEquipmentActivity extends AppCompatActivity {
         } catch (Exception ignored) {
         }
 
-        selectedPhotoUri = editingEquipment.photoUri;
-        if (selectedPhotoUri != null && !selectedPhotoUri.isEmpty()) {
-            ivPhoto.setImageURI(Uri.parse(selectedPhotoUri));
-        }
-
         finish();
     }
 }
