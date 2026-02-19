@@ -1,25 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+    Основной макет для главного экрана приложения. Здесь используется RecyclerView
+    для отображения списка оборудования с возможностью вертикальной прокрутки
+    и FloatingActionButton для добавления новых элементов. Использование Material
+    компонентов обеспечивает современный внешний вид.
+-->
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:layout_height="match_parent">
 
-    <Button
-        android:id="@+id/btnAdd"
+    <!-- Список оборудования. RecyclerView автоматически прокручивается вниз при
+         большом количестве элементов. -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewEquipment"
         android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="16dp"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
+    <!-- Плавающая кнопка для добавления нового оборудования -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabAdd"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Добавить оборудование"/>
+        android:contentDescription="@string/add_equipment"
+        app:srcCompat="@android:drawable/ic_input_add"
+        app:layout_anchor="parent"
+        app:layout_anchorGravity="bottom|end"
+        android:layout_margin="16dp" />
 
-    <Button
-        android:id="@+id/btnTestNotification"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Тест уведомления" />
-
-    <ListView
-        android:id="@+id/listViewEquipment"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
-
-
-</LinearLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
