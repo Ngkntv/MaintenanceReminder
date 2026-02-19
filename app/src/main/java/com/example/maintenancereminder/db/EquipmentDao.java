@@ -59,6 +59,7 @@ public class EquipmentDao {
         Cursor c = db.query(DbHelper.TABLE_EQUIPMENT, null, "id = ?", new String[]{String.valueOf(id)}, null, null, null);
         Equipment e = null;
         if (c.moveToFirst()) e = fromCursor(c);
+
         c.close();
         return e;
     }
@@ -78,6 +79,8 @@ public class EquipmentDao {
         e.nextServiceDate = c.getLong(c.getColumnIndexOrThrow("next_service_date"));
         e.notes = c.getString(c.getColumnIndexOrThrow("notes"));
         e.photoUri = c.getString(c.getColumnIndexOrThrow("photo_uri"));
+        int idx = c.getColumnIndex("photo_uri");
+        e.photoUri = (idx >= 0) ? c.getString(idx) : null;
         return e;
     }
 }

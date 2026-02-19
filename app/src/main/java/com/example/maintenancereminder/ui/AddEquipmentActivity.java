@@ -1,5 +1,6 @@
 package com.example.maintenancereminder.ui;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
@@ -42,6 +43,8 @@ public class AddEquipmentActivity extends AppCompatActivity {
                 if (uri != null) {
                     selectedPhotoUri = uri.toString();
                     ivPhoto.setImageURI(uri);
+                    getContentResolver().takePersistableUriPermission(
+                            uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 }
             });
 
@@ -94,6 +97,14 @@ public class AddEquipmentActivity extends AppCompatActivity {
         etBarcode.setText(editingEquipment.barcode);
         etLastServiceDate.setText(sdf.format(editingEquipment.lastServiceDate));
         etIntervalDays.setText(String.valueOf(editingEquipment.serviceIntervalDays));
+
+        if (editingEquipment.photoUri != null && !editingEquipment.photoUri.isEmpty()) {
+            selectedPhotoUri = editingEquipment.photoUri; // важно: сохраняем в переменную, чтобы не потерять при update
+            ivPhoto.setImageURI(android.net.Uri.parse(selectedPhotoUri));
+        } //else {
+            // если фото нет — можно показать плейсхолдер
+            //ivPhoto.setImageResource(R.drawable.ic_photo_placeholder); // если есть
+        //}
     }
 
     private void saveOrUpdate() {
