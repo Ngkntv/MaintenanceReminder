@@ -21,6 +21,8 @@ import com.example.maintenancereminder.model.Equipment;
 import com.example.maintenancereminder.ui.AddEquipmentActivity;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Главная активность отображает список оборудования в виде RecyclerView. При нажатии на
@@ -32,6 +34,7 @@ public class MainActivity extends AppCompatActivity {
     private EquipmentDao dao;
     private RecyclerView recyclerView;
     private EquipmentAdapter adapter;
+    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private final ActivityResultLauncher<String> notificationsPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
                 // Разрешение необязательное, но без него нотификации на Android 13+ не покажутся.
@@ -45,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
         dao = new EquipmentDao(this);
         recyclerView = findViewById(R.id.recyclerViewEquipment);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setHasFixedSize(true);
 
         adapter = new EquipmentAdapter(new java.util.ArrayList<>(), item -> {
             // Обычный клик — открываем запись для редактирования
@@ -56,8 +60,10 @@ public class MainActivity extends AppCompatActivity {
             long now = System.currentTimeMillis();
             item.lastServiceDate = now;
             item.nextServiceDate = now + item.serviceIntervalDays * 24L * 60L * 60L * 1000L;
-            dao.update(item);
-            loadData();
+            ioExecutor.execute(() -> {
+                dao.update(item);
+                loadData();
+            });
         });
         recyclerView.setAdapter(adapter);
 
@@ -78,8 +84,20 @@ public class MainActivity extends AppCompatActivity {
      * Загружает данные из базы и обновляет адаптер.
      */
     private void loadData() {
-        List<Equipment> list = dao.getAll();
-        adapter.setItems(list);
+        ioExecutor.execute(() -> {
+            List<Equipment> list = dao.getAll();
+            runOnUiThread(() -> {
+                if (!isFinishing() && !isDestroyed()) {
+                    adapter.setItems(list);
+                }
+            });
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        ioExecutor.shutdownNow();
     }
 
     private void requestNotificationPermissionIfNeeded() {
