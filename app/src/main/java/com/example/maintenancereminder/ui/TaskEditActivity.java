@@ -1,10 +1,12 @@
 package com.example.maintenancereminder.ui;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
@@ -15,18 +17,25 @@ import com.example.maintenancereminder.db.MaintenanceRepository;
 import com.example.maintenancereminder.db.MaintenanceTaskDao;
 import com.example.maintenancereminder.model.MaintenanceTask;
 import com.example.maintenancereminder.notification.ReminderScheduler;
+import com.example.maintenancereminder.util.DateUtils;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class TaskEditActivity extends AppCompatActivity {
+    private static final String TAG = "TaskEditActivity";
+
     private long deviceId;
     private long taskId;
     private MaintenanceTaskDao dao;
     private MaintenanceRepository repository;
     private MaintenanceTask editing;
+    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
 
-    @Override protected void onCreate(Bundle savedInstanceState) {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_task_edit);
         dao = new MaintenanceTaskDao(this);
@@ -45,12 +54,10 @@ public class TaskEditActivity extends AppCompatActivity {
             if (editing != null) {
                 ((EditText) findViewById(R.id.etTaskTitle)).setText(editing.title);
                 ((EditText) findViewById(R.id.etIntervalValue)).setText(String.valueOf(editing.intervalValue));
-                ((EditText) findViewById(R.id.etNextDueDate)).setText(com.example.maintenancereminder.util.DateUtils.formatDate(editing.nextDueDate));
-                ((EditText) findViewById(R.id.etTaskComment)).setText(editing.comment);
-                ((EditText) findViewById(R.id.etCost)).setText(editing.cost == null ? "" : String.valueOf(editing.cost));
-                ((EditText) findViewById(R.id.etConsumables)).setText(editing.consumables);
-                setSpinnerSelection(spUnit, editing.intervalUnit);
+                ((EditText) findViewById(R.id.etStartDate)).setText(DateUtils.formatDate(editing.nextDueDate));
+                setSpinnerSelection(spUnit, editing.intervalUnit == null ? "DAYS" : editing.intervalUnit);
                 setSpinnerSelection(spPriority, editing.priority);
+                updateCalculatedNextDueDate();
             }
         }
 
@@ -58,19 +65,26 @@ public class TaskEditActivity extends AppCompatActivity {
         btnComplete.setOnClickListener(v -> completeTask());
         btnComplete.setEnabled(taskId != -1L);
 
-        findViewById(R.id.btnRollback).setOnClickListener(v -> {
-            if (taskId != -1L && repository.rollbackLastCompletion(this, taskId)) {
-                Toast.makeText(this, "Последнее выполнение отменено", Toast.LENGTH_SHORT).show();
+        findViewById(R.id.btnRollback).setOnClickListener(v -> ioExecutor.execute(() -> {
+            try {
+                if (taskId != -1L && repository.rollbackLastCompletion(this, taskId)) {
+                    runOnUiThread(() -> Toast.makeText(this, "Последнее выполнение отменено", Toast.LENGTH_SHORT).show());
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Rollback failed", e);
+                runOnUiThread(() -> Toast.makeText(this, "Не удалось откатить выполнение", Toast.LENGTH_SHORT).show());
             }
-        });
+        }));
 
         findViewById(R.id.btnDeleteTask).setOnClickListener(v -> {
-            if (taskId == -1L) return;
+            if (taskId == -1L) {
+                Toast.makeText(this, "Можно удалить только существующую задачу", Toast.LENGTH_SHORT).show();
+                return;
+            }
             new AlertDialog.Builder(this).setMessage("Удалить задачу?")
-                    .setPositiveButton("Удалить", (d,w) -> {
-                        repository.deleteTask(this, taskId);
-                        finish();
-                    }).setNegativeButton("Отмена", null).show();
+                    .setPositiveButton("Удалить", (d, w) -> deleteTask())
+                    .setNegativeButton("Отмена", null)
+                    .show();
         });
 
         findViewById(R.id.btnSaveTask).setOnClickListener(v -> saveTask());
@@ -79,51 +93,132 @@ public class TaskEditActivity extends AppCompatActivity {
     private void saveTask() {
         String title = ((EditText) findViewById(R.id.etTaskTitle)).getText().toString().trim();
         String intervalStr = ((EditText) findViewById(R.id.etIntervalValue)).getText().toString().trim();
-        String dateStr = ((EditText) findViewById(R.id.etNextDueDate)).getText().toString().trim();
-        if (title.isEmpty() || intervalStr.isEmpty() || dateStr.isEmpty()) {
+        String startDateStr = ((EditText) findViewById(R.id.etStartDate)).getText().toString().trim();
+        if (title.isEmpty() || intervalStr.isEmpty()) {
             Toast.makeText(this, "Заполните обязательные поля", Toast.LENGTH_SHORT).show();
             return;
         }
 
         long interval;
-        long dueMillis;
+        LocalDate baseDate;
         try {
             interval = Long.parseLong(intervalStr);
-            if (interval <= 0) throw new IllegalArgumentException();
-            dueMillis = LocalDate.parse(dateStr).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+            if (interval <= 0) throw new IllegalArgumentException("interval <= 0");
+            baseDate = startDateStr.isEmpty() ? LocalDate.now() : LocalDate.parse(startDateStr);
         } catch (Exception e) {
-            Toast.makeText(this, "Проверьте формат даты yyyy-MM-dd и период", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Проверьте период и формат даты yyyy-MM-dd", Toast.LENGTH_SHORT).show();
             return;
         }
+
+        String intervalUnit = ((Spinner) findViewById(R.id.spIntervalUnit)).getSelectedItem().toString();
+        LocalDate nextDueDate = DateUtils.calculateNextDueDate(baseDate, interval, intervalUnit);
+        updateCalculatedNextDueDate(nextDueDate);
 
         MaintenanceTask task = editing == null ? new MaintenanceTask() : editing;
         task.deviceId = deviceId;
         task.title = title;
         task.intervalValue = interval;
-        task.intervalUnit = ((Spinner) findViewById(R.id.spIntervalUnit)).getSelectedItem().toString();
-        task.nextDueDate = dueMillis;
+        task.intervalUnit = intervalUnit;
+        task.nextDueDate = nextDueDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
         task.priority = ((Spinner) findViewById(R.id.spPriority)).getSelectedItem().toString();
-        task.comment = ((EditText) findViewById(R.id.etTaskComment)).getText().toString().trim();
-        String cost = ((EditText) findViewById(R.id.etCost)).getText().toString().trim();
-        task.cost = cost.isEmpty() ? null : Double.parseDouble(cost);
-        task.consumables = ((EditText) findViewById(R.id.etConsumables)).getText().toString().trim();
+        if (task.comment == null) task.comment = "";
+        task.cost = null;
+        task.consumables = null;
         task.isActive = 1;
 
-        if (editing == null) task.id = dao.insert(task); else dao.update(task);
-        ReminderScheduler.scheduleTaskReminder(this, task);
-        finish();
+        ioExecutor.execute(() -> {
+            try {
+                if (editing == null) {
+                    long id = dao.insert(task);
+                    if (id <= 0) throw new IllegalStateException("Insert task failed");
+                    task.id = id;
+                } else {
+                    int rows = dao.update(task);
+                    if (rows <= 0) throw new IllegalStateException("Update task failed for id=" + task.id);
+                }
+                ReminderScheduler.scheduleTaskReminder(this, task);
+                runOnUiThread(this::finish);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to save task", e);
+                runOnUiThread(() -> Toast.makeText(this, "Не удалось сохранить задачу", Toast.LENGTH_SHORT).show());
+            }
+        });
     }
 
     private void completeTask() {
-        if (editing == null) return;
-        repository.completeTask(this, editing, System.currentTimeMillis(), "", editing.consumables, editing.cost);
-        Toast.makeText(this, "Отмечено как выполнено", Toast.LENGTH_SHORT).show();
-        finish();
+        if (editing == null || editing.id == null || editing.deviceId == null || editing.intervalValue == null || editing.intervalValue <= 0) {
+            Toast.makeText(this, "Некорректные данные задачи", Toast.LENGTH_SHORT).show();
+            Log.w(TAG, "completeTask skipped due invalid editing state");
+            return;
+        }
+
+        ioExecutor.execute(() -> {
+            try {
+                if (editing.intervalUnit == null) {
+                    editing.intervalUnit = "DAYS";
+                }
+                repository.completeTask(this, editing, System.currentTimeMillis(), "", null, null);
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Отмечено как выполнено", Toast.LENGTH_SHORT).show();
+                    finish();
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to complete task", e);
+                runOnUiThread(() -> Toast.makeText(this, "Ошибка при выполнении задачи", Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
+
+    private void deleteTask() {
+        ioExecutor.execute(() -> {
+            try {
+                int deleted = repository.deleteTask(this, taskId);
+                runOnUiThread(() -> {
+                    if (deleted > 0) {
+                        Toast.makeText(this, "Задача удалена", Toast.LENGTH_SHORT).show();
+                        finish();
+                    } else {
+                        Toast.makeText(this, "Задача не найдена", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Delete task failed", e);
+                runOnUiThread(() -> Toast.makeText(this, "Не удалось удалить задачу", Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
+
+    private void updateCalculatedNextDueDate() {
+        String intervalStr = ((EditText) findViewById(R.id.etIntervalValue)).getText().toString().trim();
+        String startDateStr = ((EditText) findViewById(R.id.etStartDate)).getText().toString().trim();
+        if (intervalStr.isEmpty()) {
+            updateCalculatedNextDueDate(null);
+            return;
+        }
+        try {
+            long interval = Long.parseLong(intervalStr);
+            LocalDate start = startDateStr.isEmpty() ? LocalDate.now() : LocalDate.parse(startDateStr);
+            String unit = ((Spinner) findViewById(R.id.spIntervalUnit)).getSelectedItem().toString();
+            updateCalculatedNextDueDate(DateUtils.calculateNextDueDate(start, interval, unit));
+        } catch (Exception e) {
+            updateCalculatedNextDueDate(null);
+        }
+    }
+
+    private void updateCalculatedNextDueDate(LocalDate date) {
+        TextView tvDate = findViewById(R.id.tvCalculatedNextDueDate);
+        tvDate.setText(date == null ? "Следующая дата: —" : "Следующая дата: " + date);
     }
 
     private void setSpinnerSelection(Spinner spinner, String value) {
         ArrayAdapter<String> adapter = (ArrayAdapter<String>) spinner.getAdapter();
         int pos = adapter.getPosition(value);
         if (pos >= 0) spinner.setSelection(pos);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        ioExecutor.shutdown();
     }
 }

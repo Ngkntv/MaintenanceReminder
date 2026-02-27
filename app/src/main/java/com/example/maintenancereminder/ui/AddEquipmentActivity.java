@@ -2,6 +2,7 @@ package com.example.maintenancereminder.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -16,7 +17,11 @@ import com.example.maintenancereminder.R;
 import com.example.maintenancereminder.db.EquipmentDao;
 import com.example.maintenancereminder.model.Equipment;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 public class AddEquipmentActivity extends AppCompatActivity {
+    private static final String TAG = "AddEquipmentActivity";
 
     private EditText etName, etCategory, etNote;
     private EquipmentDao dao;
@@ -25,13 +30,18 @@ public class AddEquipmentActivity extends AppCompatActivity {
 
     private ImageView ivPhoto;
     private String selectedPhotoUri = null;
+    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
 
     private final ActivityResultLauncher<PickVisualMediaRequest> pickPhotoLauncher =
             registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
                 if (uri != null) {
                     selectedPhotoUri = uri.toString();
                     ivPhoto.setImageURI(uri);
-                    getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    try {
+                        getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    } catch (SecurityException ex) {
+                        Log.w(TAG, "No persistable permission for uri=" + uri, ex);
+                    }
                 }
             });
 
@@ -83,20 +93,36 @@ public class AddEquipmentActivity extends AppCompatActivity {
             return;
         }
 
-        if (editingId == -1L) {
-            Equipment e = new Equipment();
-            e.name = name;
-            e.category = etCategory.getText().toString().trim();
-            e.notes = etNote.getText().toString().trim();
-            e.photoUri = selectedPhotoUri;
-            dao.insert(e);
-        } else {
-            editingEquipment.name = name;
-            editingEquipment.category = etCategory.getText().toString().trim();
-            editingEquipment.notes = etNote.getText().toString().trim();
-            editingEquipment.photoUri = selectedPhotoUri;
-            dao.update(editingEquipment);
-        }
-        finish();
+        ioExecutor.execute(() -> {
+            try {
+                if (editingId == -1L) {
+                    Equipment e = new Equipment();
+                    e.name = name;
+                    e.category = etCategory.getText().toString().trim();
+                    e.notes = etNote.getText().toString().trim();
+                    e.photoUri = selectedPhotoUri;
+                    long id = dao.insert(e);
+                    if (id <= 0) throw new IllegalStateException("Insert failed for equipment " + name);
+                } else {
+                    editingEquipment.name = name;
+                    editingEquipment.category = etCategory.getText().toString().trim();
+                    editingEquipment.notes = etNote.getText().toString().trim();
+                    editingEquipment.photoUri = selectedPhotoUri;
+                    int rows = dao.update(editingEquipment);
+                    if (rows <= 0) throw new IllegalStateException("Update failed for id=" + editingId);
+                }
+
+                runOnUiThread(this::finish);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to save equipment", e);
+                runOnUiThread(() -> Toast.makeText(this, "Не удалось сохранить устройство", Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        ioExecutor.shutdown();
     }
 }

@@ -3,6 +3,7 @@ package com.example.maintenancereminder.db;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
+import android.util.Log;
 
 import com.example.maintenancereminder.model.MaintenanceTask;
 import com.example.maintenancereminder.model.ServiceHistoryEntry;
@@ -11,6 +12,7 @@ import com.example.maintenancereminder.util.DateUtils;
 
 
 public class MaintenanceRepository {
+    private static final String TAG = "MaintenanceRepository";
     private final DbHelper dbHelper;
     private final MaintenanceTaskDao taskDao;
     private final HistoryDao historyDao;
@@ -22,6 +24,10 @@ public class MaintenanceRepository {
     }
 
     public void completeTask(Context context, MaintenanceTask task, long completionDate, String comment, String consumables, Double cost) {
+        if (task == null || task.id == null || task.deviceId == null || task.intervalValue == null || task.intervalValue <= 0) {
+            throw new IllegalArgumentException("Task data is invalid for completion");
+        }
+
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         db.beginTransaction();
         try {
@@ -42,12 +48,14 @@ public class MaintenanceRepository {
             historyValues.put("consumables", entry.consumables);
             if (entry.cost == null) historyValues.putNull("cost"); else historyValues.put("cost", entry.cost);
             historyValues.put("previous_due_date", entry.previousDueDate);
-            db.insert(DbHelper.TABLE_HISTORY, null, historyValues);
+            long historyId = db.insert(DbHelper.TABLE_HISTORY, null, historyValues);
+            if (historyId <= 0) throw new IllegalStateException("Failed to save history for task=" + task.id);
 
             long newDueDate = DateUtils.calculateNextDueDate(completionDate, task.intervalValue, task.intervalUnit);
             ContentValues taskValues = new ContentValues();
             taskValues.put("next_due_date", newDueDate);
-            db.update(DbHelper.TABLE_TASKS, taskValues, "id=?", new String[]{String.valueOf(task.id)});
+            int updatedRows = db.update(DbHelper.TABLE_TASKS, taskValues, "id=?", new String[]{String.valueOf(task.id)});
+            if (updatedRows <= 0) throw new IllegalStateException("Failed to update next_due_date for task=" + task.id);
 
             db.setTransactionSuccessful();
             task.nextDueDate = newDueDate;
@@ -81,7 +89,9 @@ public class MaintenanceRepository {
 
     public int deleteTask(Context context, long taskId) {
         ReminderScheduler.cancelTaskReminder(context, taskId);
-        return taskDao.delete(taskId);
+        int deleted = taskDao.delete(taskId);
+        Log.d(TAG, "deleteTask taskId=" + taskId + " deletedRows=" + deleted);
+        return deleted;
     }
 
     public int deleteDevice(Context context, long deviceId) {
