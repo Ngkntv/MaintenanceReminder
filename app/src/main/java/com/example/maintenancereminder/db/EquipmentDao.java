@@ -3,6 +3,7 @@ package com.example.maintenancereminder.db;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
+import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
 
 import com.example.maintenancereminder.model.Equipment;
@@ -19,22 +20,43 @@ public class EquipmentDao {
 
     public long insert(Equipment e) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put("name", e.name);
-        cv.put("category", e.category);
-        cv.put("notes", e.notes);
-        cv.put("photo_uri", e.photoUri);
+        ContentValues cv = buildEquipmentValues(db, e);
         return db.insert(DbHelper.TABLE_EQUIPMENT, null, cv);
     }
 
     public int update(Equipment e) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
+        ContentValues cv = buildEquipmentValues(db, e);
+        return db.update(DbHelper.TABLE_EQUIPMENT, cv, "id = ?", new String[]{String.valueOf(e.id)});
+    }
+
+    private ContentValues buildEquipmentValues(SQLiteDatabase db, Equipment e) {
         ContentValues cv = new ContentValues();
         cv.put("name", e.name);
-        cv.put("category", e.category);
-        cv.put("notes", e.notes);
-        cv.put("photo_uri", e.photoUri);
-        return db.update(DbHelper.TABLE_EQUIPMENT, cv, "id = ?", new String[]{String.valueOf(e.id)});
+        putIfColumnExists(db, cv, "category", e.category);
+        putIfColumnExists(db, cv, "notes", e.notes);
+        putIfColumnExists(db, cv, "photo_uri", e.photoUri);
+        return cv;
+    }
+
+    private void putIfColumnExists(SQLiteDatabase db, ContentValues cv, String columnName, String value) {
+        if (columnExists(db, DbHelper.TABLE_EQUIPMENT, columnName)) {
+            cv.put(columnName, value);
+        }
+    }
+
+    private boolean columnExists(SQLiteDatabase db, String tableName, String columnName) {
+        try (Cursor cursor = db.rawQuery("PRAGMA table_info(" + tableName + ")", null)) {
+            int nameIndex = cursor.getColumnIndex("name");
+            while (cursor.moveToNext()) {
+                if (nameIndex >= 0 && columnName.equals(cursor.getString(nameIndex))) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (SQLException ignored) {
+            return false;
+        }
     }
 
     public List<Equipment> getAllWithNearestDue() {
