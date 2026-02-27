@@ -34,6 +34,12 @@ public class MainActivity extends AppCompatActivity {
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private final ActivityResultLauncher<String> notificationsPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {});
+    private final ActivityResultLauncher<Intent> addEquipmentLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() == RESULT_OK) {
+                    loadData();
+                }
+            });
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -51,7 +57,8 @@ public class MainActivity extends AppCompatActivity {
         recyclerView.setAdapter(adapter);
 
         FloatingActionButton fab = findViewById(R.id.fabAdd);
-        fab.setOnClickListener(view -> startActivity(new Intent(MainActivity.this, AddEquipmentActivity.class)));
+        fab.setOnClickListener(view ->
+                addEquipmentLauncher.launch(new Intent(MainActivity.this, AddEquipmentActivity.class)));
         findViewById(R.id.btnSettings).setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
         findViewById(R.id.btnJournal).setOnClickListener(v -> startActivity(new Intent(this, HistoryActivity.class)));
 
