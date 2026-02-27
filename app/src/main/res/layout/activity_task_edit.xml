@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <EditText android:id="@+id/etTaskTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Название задачи *"/>
+        <EditText android:id="@+id/etIntervalValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Периодичность (число) *" android:inputType="number"/>
+        <Spinner android:id="@+id/spIntervalUnit" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <EditText android:id="@+id/etNextDueDate" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Следующая дата yyyy-MM-dd *"/>
+        <Spinner android:id="@+id/spPriority" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <EditText android:id="@+id/etTaskComment" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Комментарий"/>
+        <EditText android:id="@+id/etCost" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Стоимость" android:inputType="numberDecimal"/>
+        <EditText android:id="@+id/etConsumables" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Расходники"/>
+
+        <Button android:id="@+id/btnSaveTask" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сохранить"/>
+        <Button android:id="@+id/btnCompleteTask" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Выполнено"/>
+        <Button android:id="@+id/btnRollback" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Откатить последнее выполнение"/>
+        <Button android:id="@+id/btnDeleteTask" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Удалить задачу"/>
+    </LinearLayout>
+</ScrollView>

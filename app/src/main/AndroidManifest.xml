@@ -16,10 +16,14 @@
         android:theme="@style/Theme.MaintenanceReminder"
         tools:targetApi="31">
 
-        <!-- Экран добавления оборудования -->
         <activity
             android:name=".ui.AddEquipmentActivity"
             android:exported="false" />
+
+        <activity android:name=".ui.SettingsActivity" android:exported="false" />
+        <activity android:name=".ui.HistoryActivity" android:exported="false" />
+        <activity android:name=".ui.TaskEditActivity" android:exported="false" />
+        <activity android:name=".ui.DeviceDetailActivity" android:exported="false" />
 
         <!-- Receiver для срабатывания напоминаний -->
         <receiver
