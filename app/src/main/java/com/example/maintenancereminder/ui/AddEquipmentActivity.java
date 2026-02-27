@@ -2,6 +2,7 @@ package com.example.maintenancereminder.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Looper;
 import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
@@ -89,32 +90,40 @@ public class AddEquipmentActivity extends AppCompatActivity {
     private void saveOrUpdate() {
         String name = etName.getText().toString().trim();
         if (name.isEmpty()) {
-            Toast.makeText(this, "Название обязательно", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Введите название устройства", Toast.LENGTH_SHORT).show();
             return;
         }
+
+        String category = etCategory.getText().toString().trim();
+        String notes = etNote.getText().toString().trim();
+        String photoUri = selectedPhotoUri;
 
         ioExecutor.execute(() -> {
             try {
                 if (editingId == -1L) {
                     Equipment e = new Equipment();
                     e.name = name;
-                    e.category = etCategory.getText().toString().trim();
-                    e.notes = etNote.getText().toString().trim();
-                    e.photoUri = selectedPhotoUri;
+                    e.category = category;
+                    e.notes = notes;
+                    e.photoUri = photoUri;
                     long id = dao.insert(e);
                     if (id <= 0) throw new IllegalStateException("Insert failed for equipment " + name);
                 } else {
                     editingEquipment.name = name;
-                    editingEquipment.category = etCategory.getText().toString().trim();
-                    editingEquipment.notes = etNote.getText().toString().trim();
-                    editingEquipment.photoUri = selectedPhotoUri;
+                    editingEquipment.category = category;
+                    editingEquipment.notes = notes;
+                    editingEquipment.photoUri = photoUri;
                     int rows = dao.update(editingEquipment);
                     if (rows <= 0) throw new IllegalStateException("Update failed for id=" + editingId);
                 }
 
-                runOnUiThread(this::finish);
+                runOnUiThread(() -> {
+                    setResult(RESULT_OK);
+                    finish();
+                });
             } catch (Exception e) {
-                Log.e(TAG, "Failed to save equipment", e);
+                Log.e(TAG, "Failed to save equipment. workerThread=" + Thread.currentThread().getName() +
+                        ", isMainThread=" + (Looper.myLooper() == Looper.getMainLooper()), e);
                 runOnUiThread(() -> Toast.makeText(this, "Не удалось сохранить устройство", Toast.LENGTH_SHORT).show());
             }
         });
