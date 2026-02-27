@@ -9,51 +9,19 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <EditText
-            android:id="@+id/etName"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Название оборудования"/>
-
-        <EditText
-            android:id="@+id/etBarcode"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Штрихкод (вручную)"/>
-
-        <EditText
-            android:id="@+id/etLastServiceDate"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Дата последнего ТО (yyyy-MM-dd)"/>
-
-        <EditText
-            android:id="@+id/etIntervalDays"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Интервал ТО (дни)"
-            android:inputType="number"/>
+        <EditText android:id="@+id/etName" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Название *"/>
+        <EditText android:id="@+id/etCategory" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Категория"/>
+        <EditText android:id="@+id/etNotes" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Заметка"/>
 
         <ImageView
             android:id="@+id/ivPhoto"
             android:layout_width="match_parent"
             android:layout_height="180dp"
-            android:scaleType="fitCenter"
             android:adjustViewBounds="true"
-            android:contentDescription="Фото оборудования"/>
+            android:contentDescription="Фото"
+            android:scaleType="fitCenter" />
 
-
-        <Button
-            android:id="@+id/btnPickPhoto"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Выбрать фото"
-            android:layout_marginTop="8dp"/>
-
-        <Button
-            android:id="@+id/btnSave"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Сохранить"/>
+        <Button android:id="@+id/btnPickPhoto" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Выбрать фото"/>
+        <Button android:id="@+id/btnSave" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сохранить"/>
     </LinearLayout>
 </ScrollView>

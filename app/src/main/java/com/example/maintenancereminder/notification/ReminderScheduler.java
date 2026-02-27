@@ -4,82 +4,67 @@ import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.os.Build;
 import android.util.Log;
 
-import com.example.maintenancereminder.model.Equipment;
+import com.example.maintenancereminder.db.MaintenanceTaskDao;
+import com.example.maintenancereminder.db.SettingsDao;
+import com.example.maintenancereminder.model.AppSettings;
+import com.example.maintenancereminder.model.MaintenanceTask;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 
 public class ReminderScheduler {
+    private static final String TAG = "ReminderScheduler";
 
-    public static void schedule(Context context, Equipment e) {
-        if (context == null || e == null) return;
-        scheduleAt(context, e, e.nextServiceDate, safeIntId(e.id));
-    }
-
-    public static void scheduleIn10Sec(Context context, Equipment e) {
-        if (context == null || e == null) return;
-        long trigger = System.currentTimeMillis() + 10_000L;
-        scheduleAt(context, e, trigger, safeIntId(e.id) + 500000);
-    }
-
-    private static void scheduleAt(Context context, Equipment e, long triggerAtMillis, int requestCode) {
+    public static void scheduleTaskReminder(Context context, MaintenanceTask task) {
+        if (context == null || task == null || task.id == null || task.nextDueDate == null) return;
         try {
+            AppSettings settings = new SettingsDao(context).getSettings();
+            LocalDate dueDate = Instant.ofEpochMilli(task.nextDueDate).atZone(ZoneId.systemDefault()).toLocalDate();
+            long trigger = dueDate.atTime(settings.notificationHour, 0)
+                    .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+
             AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
             if (am == null) return;
 
-            long now = System.currentTimeMillis();
-            long trigger = triggerAtMillis;
-            if (trigger <= now) trigger = now + 10_000L; // защита от прошлого времени
-
-            Intent i = new Intent(context, ReminderReceiver.class);
-            i.putExtra("equipment_name", e.name);
-            i.putExtra("equipment_id", requestCode);
-
-            PendingIntent pi = PendingIntent.getBroadcast(
-                    context,
-                    requestCode,
-                    i,
-                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-            );
-
-            Log.d("REMINDER", "scheduleAt(): req=" + requestCode + " trigger=" + trigger + " now=" + now);
-
-            // Если exact alarm запрещен (Android 12+), используем inexact fallback,
-            // чтобы напоминание все равно дошло.
-            boolean canUseExact = true;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                canUseExact = am.canScheduleExactAlarms()
-                        || context.checkSelfPermission(android.Manifest.permission.SCHEDULE_EXACT_ALARM)
-                        == PackageManager.PERMISSION_GRANTED;
+            PendingIntent pi = buildPendingIntent(context, task.id.intValue(), task.deviceId, task.id, task.title);
+            if (trigger <= System.currentTimeMillis()) {
+                trigger = System.currentTimeMillis() + 5_000L;
             }
-
-            if (canUseExact) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi);
-                } else {
-                    am.setExact(AlarmManager.RTC_WAKEUP, trigger, pi);
-                }
-                Log.d("REMINDER", "Exact alarm scheduled. req=" + requestCode);
-            } else {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi);
-                } else {
-                    am.set(AlarmManager.RTC_WAKEUP, trigger, pi);
-                }
-                Log.w("REMINDER", "Exact alarms are not allowed. Scheduled inexact fallback. req=" + requestCode);
-            }
-
+            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi);
         } catch (SecurityException se) {
-            Log.e("REMINDER", "Exact alarms not allowed / SecurityException", se);
-        } catch (Exception ex) {
-            Log.e("REMINDER", "scheduleAt error", ex);
+            Log.e(TAG, "No permission for exact alarm", se);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to schedule reminder", e);
         }
     }
 
-    private static int safeIntId(long id) {
-        if (id < 1) return 1;
-        if (id > Integer.MAX_VALUE) return (int) (id % Integer.MAX_VALUE);
-        return (int) id;
+    public static void cancelTaskReminder(Context context, long taskId) {
+        try {
+            AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            if (am == null) return;
+            PendingIntent pi = buildPendingIntent(context, (int) taskId, -1L, taskId, null);
+            am.cancel(pi);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to cancel reminder for taskId=" + taskId, e);
+        }
+    }
+
+    public static void rescheduleAll(Context context) {
+        MaintenanceTaskDao dao = new MaintenanceTaskDao(context);
+        for (MaintenanceTask task : dao.getAllActive()) {
+            scheduleTaskReminder(context, task);
+        }
+    }
+
+    private static PendingIntent buildPendingIntent(Context context, int requestCode, Long deviceId, Long taskId, String taskTitle) {
+        Intent i = new Intent(context, ReminderReceiver.class);
+        i.putExtra("task_id", taskId);
+        i.putExtra("device_id", deviceId);
+        i.putExtra("task_title", taskTitle);
+        return PendingIntent.getBroadcast(context, requestCode, i,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 }
