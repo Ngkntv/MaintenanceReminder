@@ -26,6 +26,12 @@ public class DbHelper extends SQLiteOpenHelper {
     }
 
     @Override
+    public void onOpen(SQLiteDatabase db) {
+        super.onOpen(db);
+        ensureEquipmentColumns(db);
+    }
+
+    @Override
     public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE " + TABLE_EQUIPMENT + " (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -120,13 +126,18 @@ public class DbHelper extends SQLiteOpenHelper {
         }
 
         if (oldVersion < 4) {
-            ensureColumnExists(db, TABLE_EQUIPMENT, "notes", "TEXT");
-            ensureColumnExists(db, TABLE_EQUIPMENT, "photo_uri", "TEXT");
-            ensureColumnExists(db, TABLE_EQUIPMENT, "barcode", "TEXT");
-            ensureColumnExists(db, TABLE_EQUIPMENT, "last_service_date", "INTEGER");
-            ensureColumnExists(db, TABLE_EQUIPMENT, "service_interval_days", "INTEGER");
-            ensureColumnExists(db, TABLE_EQUIPMENT, "next_service_date", "INTEGER");
+            ensureEquipmentColumns(db);
         }
+    }
+
+    private void ensureEquipmentColumns(SQLiteDatabase db) {
+        ensureColumnExists(db, TABLE_EQUIPMENT, "category", "TEXT");
+        ensureColumnExists(db, TABLE_EQUIPMENT, "notes", "TEXT");
+        ensureColumnExists(db, TABLE_EQUIPMENT, "photo_uri", "TEXT");
+        ensureColumnExists(db, TABLE_EQUIPMENT, "barcode", "TEXT");
+        ensureColumnExists(db, TABLE_EQUIPMENT, "last_service_date", "INTEGER");
+        ensureColumnExists(db, TABLE_EQUIPMENT, "service_interval_days", "INTEGER");
+        ensureColumnExists(db, TABLE_EQUIPMENT, "next_service_date", "INTEGER");
     }
 
     private void ensureColumnExists(SQLiteDatabase db, String table, String column, String type) {
