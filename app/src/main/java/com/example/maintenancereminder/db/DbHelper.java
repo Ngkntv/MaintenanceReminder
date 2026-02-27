@@ -1,13 +1,14 @@
 package com.example.maintenancereminder.db;
 
 import android.content.Context;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
 public class DbHelper extends SQLiteOpenHelper {
 
     public static final String DB_NAME = "maintenance.db";
-    public static final int DB_VERSION = 3;
+    public static final int DB_VERSION = 4;
 
     public static final String TABLE_EQUIPMENT = "equipment";
     public static final String TABLE_TASKS = "maintenance_tasks";
@@ -116,6 +117,31 @@ public class DbHelper extends SQLiteOpenHelper {
             db.execSQL("INSERT OR IGNORE INTO " + TABLE_SETTINGS + "(id, notification_preset, notification_hour) VALUES(1, 'MORNING', 9)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_tasks_device_due ON " + TABLE_TASKS + "(device_id, next_due_date)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_history_device_date ON " + TABLE_HISTORY + "(device_id, completion_date DESC)");
+        }
+
+        if (oldVersion < 4) {
+            ensureColumnExists(db, TABLE_EQUIPMENT, "notes", "TEXT");
+            ensureColumnExists(db, TABLE_EQUIPMENT, "photo_uri", "TEXT");
+            ensureColumnExists(db, TABLE_EQUIPMENT, "barcode", "TEXT");
+            ensureColumnExists(db, TABLE_EQUIPMENT, "last_service_date", "INTEGER");
+            ensureColumnExists(db, TABLE_EQUIPMENT, "service_interval_days", "INTEGER");
+            ensureColumnExists(db, TABLE_EQUIPMENT, "next_service_date", "INTEGER");
+        }
+    }
+
+    private void ensureColumnExists(SQLiteDatabase db, String table, String column, String type) {
+        Cursor cursor = db.rawQuery("PRAGMA table_info(" + table + ")", null);
+        boolean exists = false;
+        while (cursor.moveToNext()) {
+            int nameIndex = cursor.getColumnIndex("name");
+            if (nameIndex >= 0 && column.equals(cursor.getString(nameIndex))) {
+                exists = true;
+                break;
+            }
+        }
+        cursor.close();
+        if (!exists) {
+            db.execSQL("ALTER TABLE " + table + " ADD COLUMN " + column + " " + type);
         }
     }
 }

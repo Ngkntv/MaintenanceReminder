@@ -8,18 +8,64 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <EditText android:id="@+id/etTaskTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Название задачи *"/>
-        <EditText android:id="@+id/etIntervalValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Периодичность (число) *" android:inputType="number"/>
-        <Spinner android:id="@+id/spIntervalUnit" android:layout_width="match_parent" android:layout_height="wrap_content"/>
-        <EditText android:id="@+id/etNextDueDate" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Следующая дата yyyy-MM-dd *"/>
-        <Spinner android:id="@+id/spPriority" android:layout_width="match_parent" android:layout_height="wrap_content"/>
-        <EditText android:id="@+id/etTaskComment" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Комментарий"/>
-        <EditText android:id="@+id/etCost" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Стоимость" android:inputType="numberDecimal"/>
-        <EditText android:id="@+id/etConsumables" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Расходники"/>
+        <EditText
+            android:id="@+id/etTaskTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Название задачи *" />
 
-        <Button android:id="@+id/btnSaveTask" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сохранить"/>
-        <Button android:id="@+id/btnCompleteTask" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Выполнено"/>
-        <Button android:id="@+id/btnRollback" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Откатить последнее выполнение"/>
-        <Button android:id="@+id/btnDeleteTask" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Удалить задачу"/>
+        <EditText
+            android:id="@+id/etIntervalValue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Периодичность (число) *"
+            android:inputType="number" />
+
+        <Spinner
+            android:id="@+id/spIntervalUnit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <EditText
+            android:id="@+id/etStartDate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Дата старта yyyy-MM-dd (опц.)" />
+
+        <TextView
+            android:id="@+id/tvCalculatedNextDueDate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Следующая дата: —" />
+
+        <Spinner
+            android:id="@+id/spPriority"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <Button
+            android:id="@+id/btnSaveTask"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Сохранить" />
+
+        <Button
+            android:id="@+id/btnCompleteTask"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Выполнено" />
+
+        <Button
+            android:id="@+id/btnRollback"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Откатить последнее выполнение" />
+
+        <Button
+            android:id="@+id/btnDeleteTask"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Удалить задачу" />
     </LinearLayout>
 </ScrollView>

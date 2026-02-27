@@ -10,23 +10,33 @@ public class DateUtils {
 
     public static long calculateNextDueDate(long baseMillis, long intervalValue, String unit) {
         LocalDate baseDate = Instant.ofEpochMilli(baseMillis).atZone(ZoneId.systemDefault()).toLocalDate();
+        return calculateNextDueDate(baseDate, intervalValue, unit)
+                .atStartOfDay(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli();
+    }
+
+    public static LocalDate calculateNextDueDate(LocalDate baseDate, long intervalValue, String unit) {
+        LocalDate safeBaseDate = baseDate == null ? LocalDate.now() : baseDate;
+        long safeInterval = Math.max(1, intervalValue);
+        String safeUnit = unit == null ? "DAYS" : unit;
         LocalDate next;
-        switch (unit) {
+        switch (safeUnit) {
             case "WEEKS":
-                next = baseDate.plusWeeks(intervalValue);
+                next = safeBaseDate.plusWeeks(safeInterval);
                 break;
             case "MONTHS":
-                next = baseDate.plusMonths(intervalValue);
+                next = safeBaseDate.plusMonths(safeInterval);
                 break;
             case "YEARS":
-                next = baseDate.plusYears(intervalValue);
+                next = safeBaseDate.plusYears(safeInterval);
                 break;
             case "DAYS":
             default:
-                next = baseDate.plusDays(intervalValue);
+                next = safeBaseDate.plusDays(safeInterval);
                 break;
         }
-        return next.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        return next;
     }
 
     public static String formatDate(long millis) {
