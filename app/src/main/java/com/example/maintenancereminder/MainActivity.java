@@ -76,7 +76,7 @@ public class MainActivity extends AppCompatActivity {
     private final ActivityResultLauncher<Intent> addEquipmentLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
                 if (result.getResultCode() == RESULT_OK) {
-                    loadData();
+                    refreshSelectedEquipmentSheet();
                 }
             });
 
@@ -196,7 +196,7 @@ public class MainActivity extends AppCompatActivity {
                             (wasScheduled ? "Напоминание проверено: " : "Напоминание добавлено: ") + triggerText,
                             Snackbar.LENGTH_LONG)
                     .show();
-            if (scheduled) loadData();
+            if (scheduled) refreshSelectedEquipmentSheet();
         });
 
         btnOpenDevice.setOnClickListener(v -> {
@@ -223,10 +223,34 @@ public class MainActivity extends AppCompatActivity {
                 adapter.setItems(list);
                 View empty = findViewById(R.id.tvEmptyState);
                 empty.setVisibility(list.isEmpty() ? View.VISIBLE : View.GONE);
-                currentNearest = null;
-                selectedEquipment = null;
+                if (selectedEquipment != null && selectedEquipment.id != null) {
+                    Equipment matched = null;
+                    for (Equipment item : list) {
+                        if (item.id != null && item.id.equals(selectedEquipment.id)) {
+                            matched = item;
+                            break;
+                        }
+                    }
+                    if (matched != null) {
+                        selectedEquipment = matched;
+                    } else {
+                        currentNearest = null;
+                        selectedEquipment = null;
+                        BottomSheetBehavior<View> behavior = BottomSheetBehavior.from(findViewById(R.id.bottomSheet));
+                        behavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+                    }
+                }
             });
         });
+    }
+
+    private void refreshSelectedEquipmentSheet() {
+        if (selectedEquipment == null || selectedEquipment.id == null) {
+            loadData();
+            return;
+        }
+        loadData();
+        showBottomSheetForEquipment(selectedEquipment);
     }
 
     private void showBottomSheetForEquipment(Equipment equipment) {
@@ -269,6 +293,7 @@ public class MainActivity extends AppCompatActivity {
         LocalDate dueDate = Instant.ofEpochMilli(nearest.task.nextDueDate).atZone(ZoneId.systemDefault()).toLocalDate();
         long daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(ZoneId.systemDefault()), dueDate);
 
+        selectedEquipment = nearest.equipment;
         tvSheetDevice.setText("Устройство: " + nearest.equipment.name);
         tvSheetDue.setText(buildDueText(daysRemaining, dueDate));
         chipStatus.setText(resolveStatus(daysRemaining));
@@ -298,7 +323,7 @@ public class MainActivity extends AppCompatActivity {
                                 Snackbar.LENGTH_LONG)
                         .setAction("Отменить", v -> rollbackCompletion(task.id))
                         .show());
-                loadData();
+                refreshSelectedEquipmentSheet();
             } catch (Exception e) {
                 runOnUiThread(() -> Snackbar.make(findViewById(R.id.bottomSheet), "Не удалось завершить задачу", Snackbar.LENGTH_SHORT).show());
             }
@@ -313,7 +338,7 @@ public class MainActivity extends AppCompatActivity {
                 Snackbar.make(findViewById(R.id.bottomSheet),
                         rolledBack ? "Последнее выполнение отменено" : "Откат недоступен",
                         Snackbar.LENGTH_SHORT).show();
-                if (rolledBack) loadData();
+                if (rolledBack) refreshSelectedEquipmentSheet();
             });
         });
     }
@@ -323,25 +348,33 @@ public class MainActivity extends AppCompatActivity {
         LocalDate selectedDate = Instant.ofEpochMilli(selectedMillisUtc).atZone(ZoneId.systemDefault()).toLocalDate();
         long localMidnight = selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
         ioExecutor.execute(() -> {
-            taskDao.updateNextDueDate(currentNearest.task.id, localMidnight);
-            runOnUiThread(() -> {
-                Snackbar.make(findViewById(R.id.bottomSheet), "Дата обслуживания обновлена", Snackbar.LENGTH_SHORT).show();
-                loadData();
-            });
+            try {
+                int rows = taskDao.updateNextDueDate(currentNearest.task.id, localMidnight);
+                runOnUiThread(() -> {
+                    Snackbar.make(findViewById(R.id.bottomSheet), rows > 0 ? "Дата обслуживания обновлена" : "Не удалось обновить дату", Snackbar.LENGTH_SHORT).show();
+                    if (rows > 0) refreshSelectedEquipmentSheet();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> Snackbar.make(findViewById(R.id.bottomSheet), "Ошибка при обновлении даты", Snackbar.LENGTH_SHORT).show());
+            }
         });
     }
 
     private void updatePeriodicity(long newDays) {
         if (currentNearest == null) return;
         ioExecutor.execute(() -> {
-            MaintenanceTask task = currentNearest.task;
-            task.intervalValue = newDays;
-            task.intervalUnit = "DAYS";
-            taskDao.update(task);
-            runOnUiThread(() -> {
-                Snackbar.make(findViewById(R.id.bottomSheet), "Периодичность обновлена", Snackbar.LENGTH_SHORT).show();
-                loadData();
-            });
+            try {
+                MaintenanceTask task = currentNearest.task;
+                task.intervalValue = newDays;
+                task.intervalUnit = "DAYS";
+                int rows = taskDao.update(task);
+                runOnUiThread(() -> {
+                    Snackbar.make(findViewById(R.id.bottomSheet), rows > 0 ? "Периодичность обновлена" : "Не удалось обновить периодичность", Snackbar.LENGTH_SHORT).show();
+                    if (rows > 0) refreshSelectedEquipmentSheet();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> Snackbar.make(findViewById(R.id.bottomSheet), "Ошибка при обновлении периодичности", Snackbar.LENGTH_SHORT).show());
+            }
         });
     }
 
