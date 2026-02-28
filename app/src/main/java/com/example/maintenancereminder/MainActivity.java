@@ -107,7 +107,14 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.btnSettings).setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
         findViewById(R.id.btnJournal).setOnClickListener(v -> startActivity(new Intent(this, HistoryActivity.class)));
 
+
         requestNotificationPermissionIfNeeded();
+        rescheduleRemindersInBackground();
+    }
+
+
+    private void rescheduleRemindersInBackground() {
+        ioExecutor.execute(() -> ReminderScheduler.rescheduleAll(getApplicationContext()));
     }
 
     private void initBottomSheet() {
