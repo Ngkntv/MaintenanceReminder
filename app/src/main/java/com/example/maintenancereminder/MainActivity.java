@@ -339,11 +339,19 @@ public class MainActivity extends AppCompatActivity {
                 }
                 repository.completeTask(this, task, System.currentTimeMillis(), "", null, null);
                 String nextDate = formatDate(task.nextDueDate);
-                runOnUiThread(() -> Snackbar.make(findViewById(R.id.bottomSheet),
-                                "Задача выполнена. Следующая дата: " + nextDate,
-                                Snackbar.LENGTH_LONG)
-                        .setAction("Отменить", v -> rollbackCompletion(task.id))
-                        .show());
+                String periodText = task.intervalValue + " " + mapIntervalUnit(task.intervalUnit);
+                runOnUiThread(() -> {
+                    new AlertDialog.Builder(this)
+                            .setTitle("Задача выполнена")
+                            .setMessage("Следующее обслуживание: " + nextDate + "\nПериодичность: " + periodText)
+                            .setPositiveButton("Ок", null)
+                            .setNegativeButton("Отменить", (d, w) -> rollbackCompletion(task.id))
+                            .show();
+                    Snackbar.make(findViewById(R.id.bottomSheet),
+                                    "Задача выполнена. Следующая дата: " + nextDate,
+                                    Snackbar.LENGTH_LONG)
+                            .show();
+                });
                 refreshSelectedEquipmentSheet();
             } catch (Exception e) {
                 runOnUiThread(() -> Snackbar.make(findViewById(R.id.bottomSheet), "Не удалось завершить задачу", Snackbar.LENGTH_SHORT).show());
