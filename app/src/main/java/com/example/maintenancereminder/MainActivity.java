@@ -40,7 +40,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -55,7 +54,6 @@ public class MainActivity extends AppCompatActivity {
     private MaintenanceRepository repository;
     private EquipmentAdapter adapter;
 
-    private BottomSheetBehavior<View> bottomSheetBehavior;
     private TextView tvSheetDevice;
     private TextView tvSheetDue;
     private TextView tvLastService;
@@ -114,7 +112,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void initBottomSheet() {
         View sheet = findViewById(R.id.bottomSheet);
-        bottomSheetBehavior = BottomSheetBehavior.from(sheet);
+        BottomSheetBehavior<View> bottomSheetBehavior = BottomSheetBehavior.from(sheet);
         bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
 
         tvSheetDevice = findViewById(R.id.tvSheetDevice);
@@ -192,58 +190,31 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadData() {
         ioExecutor.execute(() -> {
-            List<Equipment> list = equipmentDao.getAllWithNearestDue();
-            List<MaintenanceTask> tasks = taskDao.getAllActive();
-            NearestMaintenance nearest = findNearestMaintenance(tasks);
+            java.util.List<Equipment> list = equipmentDao.getAllWithNearestDue();
+            MaintenanceTask selectedTask = taskDao.getNearestForBottomSheet();
+            NearestMaintenance nearest = null;
+            if (selectedTask != null && selectedTask.deviceId != null && selectedTask.id != null) {
+                Equipment equipment = equipmentDao.getById(selectedTask.deviceId);
+                if (equipment != null) {
+                    ServiceHistoryEntry lastHistory = historyDao.getLastByTask(selectedTask.id);
+                    nearest = new NearestMaintenance(equipment, selectedTask, lastHistory);
+                }
+            }
+            NearestMaintenance finalNearest = nearest;
             runOnUiThread(() -> {
                 adapter.setItems(list);
                 View empty = findViewById(R.id.tvEmptyState);
                 empty.setVisibility(list.isEmpty() ? View.VISIBLE : View.GONE);
-                currentNearest = nearest;
-                bindBottomSheet(nearest);
+                currentNearest = finalNearest;
+                bindBottomSheet(finalNearest);
             });
         });
-    }
-
-    private NearestMaintenance findNearestMaintenance(List<MaintenanceTask> tasks) {
-        if (tasks == null || tasks.isEmpty()) return null;
-        LocalDate today = LocalDate.now(ZoneId.systemDefault());
-
-        MaintenanceTask bestUpcoming = null;
-        LocalDate bestUpcomingDate = null;
-        MaintenanceTask bestOverdue = null;
-        LocalDate bestOverdueDate = null;
-
-        for (MaintenanceTask task : tasks) {
-            if (task.nextDueDate == null || task.deviceId == null || task.id == null) continue;
-            LocalDate dueDate = Instant.ofEpochMilli(task.nextDueDate).atZone(ZoneId.systemDefault()).toLocalDate();
-            if (!dueDate.isBefore(today)) {
-                if (bestUpcoming == null || dueDate.isBefore(bestUpcomingDate)) {
-                    bestUpcoming = task;
-                    bestUpcomingDate = dueDate;
-                }
-            } else {
-                if (bestOverdue == null || dueDate.isAfter(bestOverdueDate)) {
-                    bestOverdue = task;
-                    bestOverdueDate = dueDate;
-                }
-            }
-        }
-
-        MaintenanceTask selectedTask = bestUpcoming != null ? bestUpcoming : bestOverdue;
-        if (selectedTask == null) return null;
-
-        Equipment equipment = equipmentDao.getById(selectedTask.deviceId);
-        if (equipment == null) return null;
-
-        ServiceHistoryEntry lastHistory = historyDao.getLastByTask(selectedTask.id);
-        return new NearestMaintenance(equipment, selectedTask, lastHistory);
     }
 
     private void bindBottomSheet(NearestMaintenance nearest) {
         if (nearest == null) {
             tvSheetDevice.setText("Нет задач обслуживания");
-            tvSheetDue.setText("Добавьте устройство или задачу для старта");
+            tvSheetDue.setText("Нет задач обслуживания");
             chipStatus.setText("Ок");
             tvLastService.setText("Последнее обслуживание: —");
             tvPeriod.setText("Периодичность: —");
