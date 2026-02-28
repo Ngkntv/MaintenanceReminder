@@ -17,17 +17,18 @@ import java.time.ZoneId;
 public class ReminderScheduler {
 
     public static void scheduleTaskReminder(Context context, MaintenanceTask task) {
-        if (context == null || task == null || task.id == null) return;
+        if (context == null || task == null || task.id == null || task.nextDueDate == null) return;
 
-        AppSettings settings = new SettingsDao(context).getSettings();
+        Context appContext = context.getApplicationContext();
+        AppSettings settings = new SettingsDao(appContext).getSettings();
         LocalDate dueDate = Instant.ofEpochMilli(task.nextDueDate).atZone(ZoneId.systemDefault()).toLocalDate();
         long trigger = dueDate.atTime(settings.notificationHour, 0)
                 .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
 
-        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        AlarmManager am = (AlarmManager) appContext.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
 
-        PendingIntent pi = buildPendingIntent(context, task.id.intValue(), task.deviceId, task.id, task.title);
+        PendingIntent pi = buildPendingIntent(appContext, task.id.intValue(), task.deviceId, task.id, task.title);
         if (trigger <= System.currentTimeMillis()) {
             trigger = System.currentTimeMillis() + 5_000L;
         }
@@ -35,9 +36,10 @@ public class ReminderScheduler {
     }
 
     public static void cancelTaskReminder(Context context, long taskId) {
-        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        Context appContext = context.getApplicationContext();
+        AlarmManager am = (AlarmManager) appContext.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
-        PendingIntent pi = buildPendingIntent(context, (int) taskId, -1L, taskId, null);
+        PendingIntent pi = buildPendingIntent(appContext, (int) taskId, -1L, taskId, null);
         am.cancel(pi);
     }
 
@@ -50,8 +52,8 @@ public class ReminderScheduler {
 
     private static PendingIntent buildPendingIntent(Context context, int requestCode, Long deviceId, Long taskId, String taskTitle) {
         Intent i = new Intent(context, ReminderReceiver.class);
-        i.putExtra("task_id", taskId);
-        i.putExtra("device_id", deviceId);
+        i.putExtra("task_id", taskId == null ? -1L : taskId);
+        i.putExtra("device_id", deviceId == null ? -1L : deviceId);
         i.putExtra("task_title", taskTitle);
         return PendingIntent.getBroadcast(context, requestCode, i,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);

@@ -23,6 +23,12 @@ public class MaintenanceTaskDao {
         return db.insert(DbHelper.TABLE_TASKS, null, cv);
     }
 
+    public long insertOrThrow(MaintenanceTask task) {
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        ContentValues cv = toValues(task);
+        return db.insertOrThrow(DbHelper.TABLE_TASKS, null, cv);
+    }
+
     public int update(MaintenanceTask task) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         ContentValues cv = toValues(task);
