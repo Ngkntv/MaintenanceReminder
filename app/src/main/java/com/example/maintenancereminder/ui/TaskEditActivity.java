@@ -135,22 +135,37 @@ public class TaskEditActivity extends AppCompatActivity {
         task.cost = null;
         task.consumables = null;
         task.isActive = 1;
+        final Context appContext = getApplicationContext();
 
         ioExecutor.execute(() -> {
             try {
                 if (editing == null) {
-                    long id = dao.insert(task);
-                    if (id <= 0) throw new IllegalStateException("Insert task failed");
+                    long id = dao.insertOrThrow(task);
                     task.id = id;
                 } else {
                     int rows = dao.update(task);
                     if (rows <= 0) throw new IllegalStateException("Update task failed for id=" + task.id);
                 }
-                ReminderScheduler.scheduleTaskReminder(this, task);
-                runOnUiThread(this::finish);
             } catch (Exception e) {
                 Log.e(TAG, "Failed to save task", e);
-                runOnUiThread(() -> Toast.makeText(this, "Не удалось сохранить задачу", Toast.LENGTH_SHORT).show());
+                String errorType = e.getClass().getSimpleName();
+                runOnUiThread(() -> Toast.makeText(
+                        this,
+                        "Не удалось сохранить задачу (" + errorType + ")",
+                        Toast.LENGTH_SHORT
+                ).show());
+                return;
+            }
+
+            try {
+                ReminderScheduler.scheduleTaskReminder(appContext, task);
+                runOnUiThread(this::finish);
+            } catch (Exception e) {
+                Log.e(TAG, "Task saved but failed to schedule reminder", e);
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Задача сохранена, но напоминание не установлено", Toast.LENGTH_LONG).show();
+                    finish();
+                });
             }
         });
     }
