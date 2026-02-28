@@ -42,6 +42,10 @@ public class TaskEditActivity extends AppCompatActivity {
         repository = new MaintenanceRepository(this);
 
         deviceId = getIntent().getLongExtra("device_id", -1L);
+        if (deviceId == -1L) {
+            // Backward compatibility with callers that still pass equipment_id.
+            deviceId = getIntent().getLongExtra("equipment_id", -1L);
+        }
         taskId = getIntent().getLongExtra("task_id", -1L);
 
         Spinner spUnit = findViewById(R.id.spIntervalUnit);
@@ -91,6 +95,12 @@ public class TaskEditActivity extends AppCompatActivity {
     }
 
     private void saveTask() {
+        if (deviceId <= 0L) {
+            Toast.makeText(this, "Не удалось определить устройство для задачи", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "saveTask failed: invalid deviceId=" + deviceId);
+            return;
+        }
+
         String title = ((EditText) findViewById(R.id.etTaskTitle)).getText().toString().trim();
         String intervalStr = ((EditText) findViewById(R.id.etIntervalValue)).getText().toString().trim();
         String startDateStr = ((EditText) findViewById(R.id.etStartDate)).getText().toString().trim();
