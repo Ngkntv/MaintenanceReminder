@@ -67,6 +67,7 @@ public class MainActivity extends AppCompatActivity {
     private com.google.android.material.button.MaterialButton btnOpenDevice;
 
     private NearestMaintenance currentNearest;
+    private Equipment selectedEquipment;
 
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private final ActivityResultLauncher<String> notificationsPermissionLauncher =
@@ -142,10 +143,24 @@ public class MainActivity extends AppCompatActivity {
     private void setupActions() {
         btnPrimaryAction.setOnClickListener(v -> {
             if (currentNearest == null) {
-                addEquipmentLauncher.launch(new Intent(MainActivity.this, AddEquipmentActivity.class));
+                if (selectedEquipment != null && selectedEquipment.id != null) {
+                    Intent intent = new Intent(MainActivity.this, DeviceDetailActivity.class);
+                    intent.putExtra("equipment_id", selectedEquipment.id);
+                    startActivity(intent);
+                } else {
+                    addEquipmentLauncher.launch(new Intent(MainActivity.this, AddEquipmentActivity.class));
+                }
                 return;
             }
             completeCurrentTask();
+        });
+
+        chipStatus.setOnClickListener(v -> {
+            BottomSheetBehavior<View> behavior = BottomSheetBehavior.from(findViewById(R.id.bottomSheet));
+            int state = behavior.getState();
+            behavior.setState(state == BottomSheetBehavior.STATE_EXPANDED
+                    ? BottomSheetBehavior.STATE_COLLAPSED
+                    : BottomSheetBehavior.STATE_EXPANDED);
         });
 
         btnMoveDate.setOnClickListener(v -> {
@@ -185,9 +200,12 @@ public class MainActivity extends AppCompatActivity {
         });
 
         btnOpenDevice.setOnClickListener(v -> {
-            if (currentNearest == null) return;
+            Long equipmentId = currentNearest != null && currentNearest.equipment != null
+                    ? currentNearest.equipment.id
+                    : (selectedEquipment == null ? null : selectedEquipment.id);
+            if (equipmentId == null) return;
             Intent intent = new Intent(MainActivity.this, DeviceDetailActivity.class);
-            intent.putExtra("equipment_id", currentNearest.equipment.id);
+            intent.putExtra("equipment_id", equipmentId);
             startActivity(intent);
         });
     }
@@ -206,12 +224,14 @@ public class MainActivity extends AppCompatActivity {
                 View empty = findViewById(R.id.tvEmptyState);
                 empty.setVisibility(list.isEmpty() ? View.VISIBLE : View.GONE);
                 currentNearest = null;
+                selectedEquipment = null;
             });
         });
     }
 
     private void showBottomSheetForEquipment(Equipment equipment) {
         if (equipment == null || equipment.id == null) return;
+        selectedEquipment = equipment;
         ioExecutor.execute(() -> {
             MaintenanceTask selectedTask = taskDao.getNearestForDevice(equipment.id);
             NearestMaintenance nearest = null;
@@ -231,17 +251,18 @@ public class MainActivity extends AppCompatActivity {
 
     private void bindBottomSheet(NearestMaintenance nearest) {
         if (nearest == null) {
-            tvSheetDevice.setText("Устройство: —");
+            String deviceName = selectedEquipment == null ? "—" : selectedEquipment.name;
+            tvSheetDevice.setText("Устройство: " + deviceName);
             tvSheetDue.setText("Нет задач обслуживания");
             chipStatus.setText("Ок");
             tvLastService.setText("Последнее обслуживание: —");
             tvPeriod.setText("Периодичность: —");
             tvNote.setText("Заметка: —");
-            btnPrimaryAction.setText("Добавить устройство");
+            btnPrimaryAction.setText(selectedEquipment == null ? "Добавить устройство" : "Открыть карточку устройства");
             btnMoveDate.setEnabled(false);
             btnChangePeriod.setEnabled(false);
             btnReminderAction.setEnabled(false);
-            btnOpenDevice.setEnabled(false);
+            btnOpenDevice.setEnabled(selectedEquipment != null && selectedEquipment.id != null);
             return;
         }
 
