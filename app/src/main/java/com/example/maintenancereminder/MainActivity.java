@@ -95,7 +95,7 @@ public class MainActivity extends AppCompatActivity {
             Intent intent = new Intent(MainActivity.this, DeviceDetailActivity.class);
             intent.putExtra("equipment_id", item.id);
             startActivity(intent);
-        });
+        }, this::showBottomSheetForEquipment);
         recyclerView.setAdapter(adapter);
 
         initBottomSheet();
@@ -113,10 +113,10 @@ public class MainActivity extends AppCompatActivity {
     private void initBottomSheet() {
         View sheet = findViewById(R.id.bottomSheet);
         BottomSheetBehavior<View> bottomSheetBehavior = BottomSheetBehavior.from(sheet);
-        bottomSheetBehavior.setHideable(false);
+        bottomSheetBehavior.setHideable(true);
         bottomSheetBehavior.setDraggable(true);
         bottomSheetBehavior.setPeekHeight(getResources().getDimensionPixelSize(R.dimen.main_bottom_sheet_peek_height), true);
-        sheet.post(() -> bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED));
+        sheet.post(() -> bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN));
 
         tvSheetDevice = findViewById(R.id.tvSheetDevice);
         tvSheetDue = findViewById(R.id.tvSheetDue);
@@ -194,29 +194,37 @@ public class MainActivity extends AppCompatActivity {
     private void loadData() {
         ioExecutor.execute(() -> {
             java.util.List<Equipment> list = equipmentDao.getAllWithNearestDue();
-            MaintenanceTask selectedTask = taskDao.getNearestForBottomSheet();
-            NearestMaintenance nearest = null;
-            if (selectedTask != null && selectedTask.deviceId != null && selectedTask.id != null) {
-                Equipment equipment = equipmentDao.getById(selectedTask.deviceId);
-                if (equipment != null) {
-                    ServiceHistoryEntry lastHistory = historyDao.getLastByTask(selectedTask.id);
-                    nearest = new NearestMaintenance(equipment, selectedTask, lastHistory);
-                }
-            }
-            NearestMaintenance finalNearest = nearest;
             runOnUiThread(() -> {
                 adapter.setItems(list);
                 View empty = findViewById(R.id.tvEmptyState);
                 empty.setVisibility(list.isEmpty() ? View.VISIBLE : View.GONE);
+                currentNearest = null;
+            });
+        });
+    }
+
+    private void showBottomSheetForEquipment(Equipment equipment) {
+        if (equipment == null || equipment.id == null) return;
+        ioExecutor.execute(() -> {
+            MaintenanceTask selectedTask = taskDao.getNearestForDevice(equipment.id);
+            NearestMaintenance nearest = null;
+            if (selectedTask != null && selectedTask.id != null) {
+                ServiceHistoryEntry lastHistory = historyDao.getLastByTask(selectedTask.id);
+                nearest = new NearestMaintenance(equipment, selectedTask, lastHistory);
+            }
+            NearestMaintenance finalNearest = nearest;
+            runOnUiThread(() -> {
                 currentNearest = finalNearest;
                 bindBottomSheet(finalNearest);
+                BottomSheetBehavior<View> behavior = BottomSheetBehavior.from(findViewById(R.id.bottomSheet));
+                behavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
             });
         });
     }
 
     private void bindBottomSheet(NearestMaintenance nearest) {
         if (nearest == null) {
-            tvSheetDevice.setText("Нет задач обслуживания");
+            tvSheetDevice.setText("Устройство: —");
             tvSheetDue.setText("Нет задач обслуживания");
             chipStatus.setText("Ок");
             tvLastService.setText("Последнее обслуживание: —");

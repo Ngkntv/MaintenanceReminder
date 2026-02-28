@@ -64,6 +64,27 @@ public class MaintenanceTaskDao {
     }
 
 
+
+
+    public MaintenanceTask getNearestForDevice(long deviceId) {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        String sql = "SELECT * FROM " + DbHelper.TABLE_TASKS + " " +
+                "WHERE COALESCE(is_active, 1)=1 AND device_id=? " +
+                "ORDER BY CASE WHEN next_due_date >= ? THEN 0 ELSE 1 END, " +
+                "CASE WHEN next_due_date >= ? THEN next_due_date END ASC, " +
+                "CASE WHEN next_due_date < ? THEN next_due_date END DESC " +
+                "LIMIT 1";
+        long now = System.currentTimeMillis();
+        String[] args = new String[]{String.valueOf(deviceId), String.valueOf(now), String.valueOf(now), String.valueOf(now)};
+        Cursor c = db.rawQuery(sql, args);
+        MaintenanceTask task = null;
+        if (c.moveToFirst()) {
+            task = fromCursor(c);
+        }
+        c.close();
+        return task;
+    }
+
     public MaintenanceTask getNearestForBottomSheet() {
         SQLiteDatabase db = dbHelper.getReadableDatabase();
         String sql = "SELECT * FROM " + DbHelper.TABLE_TASKS + " " +
