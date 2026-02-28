@@ -57,7 +57,8 @@
         android:elevation="8dp"
         android:orientation="vertical"
         app:behavior_hideable="false"
-        app:behavior_peekHeight="208dp"
+        android:minHeight="@dimen/main_bottom_sheet_peek_height"
+        app:behavior_peekHeight="@dimen/main_bottom_sheet_peek_height"
         app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
         <View

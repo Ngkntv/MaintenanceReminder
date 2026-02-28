@@ -113,7 +113,10 @@ public class MainActivity extends AppCompatActivity {
     private void initBottomSheet() {
         View sheet = findViewById(R.id.bottomSheet);
         BottomSheetBehavior<View> bottomSheetBehavior = BottomSheetBehavior.from(sheet);
-        bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        bottomSheetBehavior.setHideable(false);
+        bottomSheetBehavior.setDraggable(true);
+        bottomSheetBehavior.setPeekHeight(getResources().getDimensionPixelSize(R.dimen.main_bottom_sheet_peek_height), true);
+        sheet.post(() -> bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED));
 
         tvSheetDevice = findViewById(R.id.tvSheetDevice);
         tvSheetDue = findViewById(R.id.tvSheetDue);
