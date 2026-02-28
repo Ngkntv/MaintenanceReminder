@@ -8,7 +8,11 @@ import android.database.sqlite.SQLiteDatabase;
 import com.example.maintenancereminder.model.MaintenanceTask;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 
 public class MaintenanceTaskDao {
     private final DbHelper dbHelper;
@@ -61,6 +65,55 @@ public class MaintenanceTaskDao {
         while (c.moveToNext()) list.add(fromCursor(c));
         c.close();
         return list;
+    }
+
+    public TaskWithDevice getNearestTaskForMainScreen() {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        String sql = "SELECT t.*, e.name AS device_name, " +
+                "(SELECT MAX(h.completion_date) FROM " + DbHelper.TABLE_HISTORY + " h WHERE h.task_id = t.id) AS last_completion " +
+                "FROM " + DbHelper.TABLE_TASKS + " t " +
+                "JOIN " + DbHelper.TABLE_EQUIPMENT + " e ON e.id = t.device_id " +
+                "WHERE t.is_active = 1";
+        Cursor c = db.rawQuery(sql, null);
+        List<TaskWithDevice> all = new ArrayList<>();
+        while (c.moveToNext()) {
+            MaintenanceTask task = fromCursor(c);
+            TaskWithDevice row = new TaskWithDevice();
+            row.task = task;
+            int deviceNameIdx = c.getColumnIndex("device_name");
+            row.deviceName = deviceNameIdx >= 0 ? c.getString(deviceNameIdx) : "";
+            int lastCompletionIdx = c.getColumnIndex("last_completion");
+            if (lastCompletionIdx >= 0 && !c.isNull(lastCompletionIdx)) {
+                row.lastMaintenanceDate = c.getLong(lastCompletionIdx);
+            }
+            all.add(row);
+        }
+        c.close();
+
+        if (all.isEmpty()) return null;
+
+        LocalDate today = LocalDate.now();
+        Comparator<TaskWithDevice> byDueDate = Comparator.comparingLong(it -> it.task.nextDueDate);
+        TaskWithDevice nearestUpcoming = all.stream()
+                .filter(it -> !toLocalDate(it.task.nextDueDate).isBefore(today))
+                .min(byDueDate)
+                .orElse(null);
+        if (nearestUpcoming != null) return nearestUpcoming;
+
+        return all.stream()
+                .filter(it -> toLocalDate(it.task.nextDueDate).isBefore(today))
+                .max(byDueDate)
+                .orElse(null);
+    }
+
+    private LocalDate toLocalDate(long epochMillis) {
+        return Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).toLocalDate();
+    }
+
+    public static class TaskWithDevice {
+        public MaintenanceTask task;
+        public String deviceName;
+        public Long lastMaintenanceDate;
     }
     public MaintenanceTask getById(long id) {
         SQLiteDatabase db = dbHelper.getReadableDatabase();

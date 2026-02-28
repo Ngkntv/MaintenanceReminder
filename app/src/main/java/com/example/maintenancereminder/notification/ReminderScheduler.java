@@ -104,6 +104,17 @@ public class ReminderScheduler {
         am.cancel(pi);
     }
 
+    public static boolean isReminderScheduled(Context context, long taskId) {
+        Context appContext = context.getApplicationContext();
+        PendingIntent pi = PendingIntent.getBroadcast(
+                appContext,
+                (int) taskId,
+                new Intent(appContext, ReminderReceiver.class),
+                PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE
+        );
+        return pi != null;
+    }
+
     public static void rescheduleAll(Context context) {
         MaintenanceTaskDao dao = new MaintenanceTaskDao(context);
         for (MaintenanceTask task : dao.getAllActive()) {
