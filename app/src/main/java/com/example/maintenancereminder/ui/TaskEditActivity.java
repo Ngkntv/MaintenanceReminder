@@ -139,8 +139,9 @@ public class TaskEditActivity extends AppCompatActivity {
         final Context appContext = getApplicationContext();
 
         ioExecutor.execute(() -> {
+            boolean isNewTask = editing == null;
             try {
-                if (editing == null) {
+                if (isNewTask) {
                     long id = dao.insertOrThrow(task);
                     task.id = id;
                 } else {
@@ -159,9 +160,16 @@ public class TaskEditActivity extends AppCompatActivity {
             }
 
             boolean scheduled = ReminderScheduler.scheduleTaskReminder(appContext, task);
+            boolean testScheduled = isNewTask && ReminderScheduler.scheduleTestReminderAfter5Seconds(appContext, task);
             runOnUiThread(() -> {
                 if (!scheduled) {
                     Toast.makeText(this, "Задача сохранена, но напоминание не установлено", Toast.LENGTH_LONG).show();
+                } else if (isNewTask) {
+                    Toast.makeText(this,
+                            testScheduled
+                                    ? "Тестовое напоминание появится через 5 секунд"
+                                    : "Задача сохранена. Не удалось запланировать тестовое напоминание",
+                            Toast.LENGTH_LONG).show();
                 }
                 finish();
             });

@@ -29,6 +29,7 @@ public class MaintenanceRepository {
         }
 
         SQLiteDatabase db = dbHelper.getWritableDatabase();
+        Long newDueDate = null;
         db.beginTransaction();
         try {
             ServiceHistoryEntry entry = new ServiceHistoryEntry();
@@ -51,22 +52,28 @@ public class MaintenanceRepository {
             long historyId = db.insert(DbHelper.TABLE_HISTORY, null, historyValues);
             if (historyId <= 0) throw new IllegalStateException("Failed to save history for task=" + task.id);
 
-            long newDueDate = DateUtils.calculateNextDueDate(completionDate, task.intervalValue, task.intervalUnit);
+            long baseDueDate = task.nextDueDate == null ? completionDate : task.nextDueDate;
+            long calculatedDueDate = DateUtils.calculateNextDueDate(baseDueDate, task.intervalValue, task.intervalUnit);
             ContentValues taskValues = new ContentValues();
-            taskValues.put("next_due_date", newDueDate);
+            taskValues.put("next_due_date", calculatedDueDate);
             int updatedRows = db.update(DbHelper.TABLE_TASKS, taskValues, "id=?", new String[]{String.valueOf(task.id)});
             if (updatedRows <= 0) throw new IllegalStateException("Failed to update next_due_date for task=" + task.id);
 
             db.setTransactionSuccessful();
-            task.nextDueDate = newDueDate;
-            ReminderScheduler.scheduleTaskReminder(context, task);
+            newDueDate = calculatedDueDate;
         } finally {
             db.endTransaction();
+        }
+
+        if (newDueDate != null) {
+            task.nextDueDate = newDueDate;
+            ReminderScheduler.scheduleTaskReminder(context, task);
         }
     }
 
     public boolean rollbackLastCompletion(Context context, long taskId) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
+        MaintenanceTask taskForReschedule = null;
         db.beginTransaction();
         try {
             MaintenanceTask task = taskDao.getById(taskId);
@@ -80,11 +87,16 @@ public class MaintenanceRepository {
             db.setTransactionSuccessful();
 
             task.nextDueDate = last.previousDueDate;
-            ReminderScheduler.scheduleTaskReminder(context, task);
-            return true;
+            taskForReschedule = task;
         } finally {
             db.endTransaction();
         }
+
+        if (taskForReschedule != null) {
+            ReminderScheduler.scheduleTaskReminder(context, taskForReschedule);
+            return true;
+        }
+        return false;
     }
 
     public int deleteTask(Context context, long taskId) {

@@ -19,6 +19,7 @@ import java.util.List;
 public class EquipmentAdapter extends ListAdapter<Equipment, EquipmentAdapter.ViewHolder> {
 
     public interface OnItemClickListener { void onItemClick(Equipment item); }
+    public interface OnItemLongClickListener { void onItemLongClick(Equipment item); }
 
     private static final DiffUtil.ItemCallback<Equipment> DIFF_CALLBACK = new DiffUtil.ItemCallback<>() {
         @Override
@@ -35,10 +36,12 @@ public class EquipmentAdapter extends ListAdapter<Equipment, EquipmentAdapter.Vi
     };
 
     private final OnItemClickListener clickListener;
+    private final OnItemLongClickListener longClickListener;
 
-    public EquipmentAdapter(List<Equipment> items, OnItemClickListener clickListener) {
+    public EquipmentAdapter(List<Equipment> items, OnItemClickListener clickListener, OnItemLongClickListener longClickListener) {
         super(DIFF_CALLBACK);
         this.clickListener = clickListener;
+        this.longClickListener = longClickListener;
         submitList(new ArrayList<>(items));
         setHasStableIds(true);
     }
@@ -76,6 +79,10 @@ public class EquipmentAdapter extends ListAdapter<Equipment, EquipmentAdapter.Vi
                     ? "Нет регламентных работ"
                     : "Ближайшее обслуживание: " + DateUtils.formatDate(item.nearestTaskDueDate));
             itemView.setOnClickListener(v -> clickListener.onItemClick(item));
+            itemView.setOnLongClickListener(v -> {
+                longClickListener.onItemLongClick(item);
+                return true;
+            });
         }
     }
 }

@@ -96,6 +96,55 @@ public class ReminderScheduler {
         }
     }
 
+
+    public static boolean isReminderScheduled(Context context, long taskId) {
+        Context appContext = context.getApplicationContext();
+        PendingIntent pi = PendingIntent.getBroadcast(
+                appContext,
+                (int) taskId,
+                new Intent(appContext, ReminderReceiver.class),
+                PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE
+        );
+        return pi != null;
+    }
+
+    public static long getReminderTriggerTime(Context context, MaintenanceTask task) {
+        if (task == null || task.nextDueDate == null) {
+            return -1L;
+        }
+        AppSettings settings = new SettingsDao(context.getApplicationContext()).getSettings();
+        LocalDate dueDate = Instant.ofEpochMilli(task.nextDueDate).atZone(ZoneId.systemDefault()).toLocalDate();
+        return dueDate.atTime(settings.notificationHour, 0)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli();
+    }
+
+
+    public static boolean scheduleTestReminderAfter5Seconds(Context context, MaintenanceTask task) {
+        if (context == null || task == null || task.id == null) {
+            return false;
+        }
+        Context appContext = context.getApplicationContext();
+        AlarmManager am = (AlarmManager) appContext.getSystemService(Context.ALARM_SERVICE);
+        if (am == null) return false;
+
+        long trigger = System.currentTimeMillis() + 5_000L;
+        int requestCode = 1_000_000 + task.id.intValue();
+        PendingIntent pi = buildPendingIntent(appContext, requestCode, task.deviceId, task.id, "тестовое напоминание");
+        try {
+            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi);
+            return true;
+        } catch (Exception e) {
+            try {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi);
+                return true;
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+    }
+
     public static void cancelTaskReminder(Context context, long taskId) {
         Context appContext = context.getApplicationContext();
         AlarmManager am = (AlarmManager) appContext.getSystemService(Context.ALARM_SERVICE);
