@@ -1,5 +1,6 @@
 package com.example.maintenancereminder.ui;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.ArrayAdapter;
@@ -157,16 +158,13 @@ public class TaskEditActivity extends AppCompatActivity {
                 return;
             }
 
-            try {
-                ReminderScheduler.scheduleTaskReminder(appContext, task);
-                runOnUiThread(this::finish);
-            } catch (Exception e) {
-                Log.e(TAG, "Task saved but failed to schedule reminder", e);
-                runOnUiThread(() -> {
+            boolean scheduled = ReminderScheduler.scheduleTaskReminder(appContext, task);
+            runOnUiThread(() -> {
+                if (!scheduled) {
                     Toast.makeText(this, "Задача сохранена, но напоминание не установлено", Toast.LENGTH_LONG).show();
-                    finish();
-                });
-            }
+                }
+                finish();
+            });
         });
     }
 
