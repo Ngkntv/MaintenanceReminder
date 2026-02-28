@@ -142,17 +142,18 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupActions() {
         btnPrimaryAction.setOnClickListener(v -> {
-            if (currentNearest == null) {
-                if (selectedEquipment != null && selectedEquipment.id != null) {
-                    Intent intent = new Intent(MainActivity.this, DeviceDetailActivity.class);
-                    intent.putExtra("equipment_id", selectedEquipment.id);
-                    startActivity(intent);
-                } else {
-                    addEquipmentLauncher.launch(new Intent(MainActivity.this, AddEquipmentActivity.class));
-                }
+            CharSequence primaryText = btnPrimaryAction.getText();
+            if ("Отметить выполненным".contentEquals(primaryText)) {
+                completeCurrentTask();
                 return;
             }
-            completeCurrentTask();
+            if (selectedEquipment != null && selectedEquipment.id != null) {
+                Intent intent = new Intent(MainActivity.this, DeviceDetailActivity.class);
+                intent.putExtra("equipment_id", selectedEquipment.id);
+                startActivity(intent);
+            } else {
+                addEquipmentLauncher.launch(new Intent(MainActivity.this, AddEquipmentActivity.class));
+            }
         });
 
         chipStatus.setOnClickListener(v -> {
@@ -164,7 +165,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         btnMoveDate.setOnClickListener(v -> {
-            if (currentNearest == null) return;
             MaterialDatePicker<Long> picker = MaterialDatePicker.Builder.datePicker()
                     .setSelection(currentNearest.task.nextDueDate)
                     .setTitleText("Перенести дату")
@@ -174,7 +174,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         btnChangePeriod.setOnClickListener(v -> {
-            if (currentNearest == null) return;
             final long[] periods = new long[]{7, 14, 30, 90};
             String[] labels = new String[]{"7 дней", "14 дней", "30 дней", "90 дней"};
             new AlertDialog.Builder(this)
@@ -184,19 +183,27 @@ public class MainActivity extends AppCompatActivity {
         });
 
         btnReminderAction.setOnClickListener(v -> {
-            if (currentNearest == null) return;
-            boolean wasScheduled = ReminderScheduler.isReminderScheduled(this, currentNearest.task.id);
-            boolean scheduled = ReminderScheduler.scheduleTaskReminder(this, currentNearest.task);
-            long triggerAt = ReminderScheduler.getReminderTriggerTime(this, currentNearest.task);
-            String triggerText = triggerAt > 0
-                    ? Instant.ofEpochMilli(triggerAt).atZone(ZoneId.systemDefault()).toLocalDateTime()
-                    .format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", new Locale("ru")))
-                    : "—";
-            Snackbar.make(findViewById(R.id.bottomSheet),
-                            (wasScheduled ? "Напоминание проверено: " : "Напоминание добавлено: ") + triggerText,
-                            Snackbar.LENGTH_LONG)
-                    .show();
-            if (scheduled) refreshSelectedEquipmentSheet();
+            ioExecutor.execute(() -> {
+                MaintenanceTask task = getActionTaskOrNull();
+                if (task == null || task.id == null) {
+                    runOnUiThread(() -> Snackbar.make(findViewById(R.id.bottomSheet), "Нет задачи для напоминания", Snackbar.LENGTH_SHORT).show());
+                    return;
+                }
+                boolean wasScheduled = ReminderScheduler.isReminderScheduled(this, task.id);
+                boolean scheduled = ReminderScheduler.scheduleTaskReminder(this, task);
+                long triggerAt = ReminderScheduler.getReminderTriggerTime(this, task);
+                String triggerText = triggerAt > 0
+                        ? Instant.ofEpochMilli(triggerAt).atZone(ZoneId.systemDefault()).toLocalDateTime()
+                        .format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", new Locale("ru")))
+                        : "—";
+                runOnUiThread(() -> {
+                    Snackbar.make(findViewById(R.id.bottomSheet),
+                                    (wasScheduled ? "Напоминание проверено: " : "Напоминание добавлено: ") + triggerText,
+                                    Snackbar.LENGTH_LONG)
+                            .show();
+                    if (scheduled) refreshSelectedEquipmentSheet();
+                });
+            });
         });
 
         btnOpenDevice.setOnClickListener(v -> {
@@ -311,11 +318,25 @@ public class MainActivity extends AppCompatActivity {
                 : "Добавить напоминание");
     }
 
+    private MaintenanceTask getActionTaskOrNull() {
+        if (currentNearest != null && currentNearest.task != null && currentNearest.task.id != null) {
+            MaintenanceTask byId = taskDao.getById(currentNearest.task.id);
+            if (byId != null) return byId;
+        }
+        if (selectedEquipment != null && selectedEquipment.id != null) {
+            return taskDao.getNearestForDevice(selectedEquipment.id);
+        }
+        return null;
+    }
+
     private void completeCurrentTask() {
-        if (currentNearest == null) return;
         ioExecutor.execute(() -> {
             try {
-                MaintenanceTask task = currentNearest.task;
+                MaintenanceTask task = getActionTaskOrNull();
+                if (task == null || task.id == null) {
+                    runOnUiThread(() -> Snackbar.make(findViewById(R.id.bottomSheet), "Нет задачи для выполнения", Snackbar.LENGTH_SHORT).show());
+                    return;
+                }
                 repository.completeTask(this, task, System.currentTimeMillis(), "", null, null);
                 String nextDate = formatDate(task.nextDueDate);
                 runOnUiThread(() -> Snackbar.make(findViewById(R.id.bottomSheet),
@@ -344,12 +365,16 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateDueDate(long selectedMillisUtc) {
-        if (currentNearest == null) return;
         LocalDate selectedDate = Instant.ofEpochMilli(selectedMillisUtc).atZone(ZoneId.systemDefault()).toLocalDate();
         long localMidnight = selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
         ioExecutor.execute(() -> {
             try {
-                int rows = taskDao.updateNextDueDate(currentNearest.task.id, localMidnight);
+                MaintenanceTask task = getActionTaskOrNull();
+                if (task == null || task.id == null) {
+                    runOnUiThread(() -> Snackbar.make(findViewById(R.id.bottomSheet), "Нет задачи для изменения даты", Snackbar.LENGTH_SHORT).show());
+                    return;
+                }
+                int rows = taskDao.updateNextDueDate(task.id, localMidnight);
                 runOnUiThread(() -> {
                     Snackbar.make(findViewById(R.id.bottomSheet), rows > 0 ? "Дата обслуживания обновлена" : "Не удалось обновить дату", Snackbar.LENGTH_SHORT).show();
                     if (rows > 0) refreshSelectedEquipmentSheet();
@@ -361,10 +386,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updatePeriodicity(long newDays) {
-        if (currentNearest == null) return;
         ioExecutor.execute(() -> {
             try {
-                MaintenanceTask task = currentNearest.task;
+                MaintenanceTask task = getActionTaskOrNull();
+                if (task == null) {
+                    runOnUiThread(() -> Snackbar.make(findViewById(R.id.bottomSheet), "Нет задачи для изменения", Snackbar.LENGTH_SHORT).show());
+                    return;
+                }
                 task.intervalValue = newDays;
                 task.intervalUnit = "DAYS";
                 int rows = taskDao.update(task);
