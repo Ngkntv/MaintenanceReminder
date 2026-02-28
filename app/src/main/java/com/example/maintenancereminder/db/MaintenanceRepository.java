@@ -52,7 +52,8 @@ public class MaintenanceRepository {
             long historyId = db.insert(DbHelper.TABLE_HISTORY, null, historyValues);
             if (historyId <= 0) throw new IllegalStateException("Failed to save history for task=" + task.id);
 
-            long calculatedDueDate = DateUtils.calculateNextDueDate(completionDate, task.intervalValue, task.intervalUnit);
+            long baseDueDate = task.nextDueDate == null ? completionDate : task.nextDueDate;
+            long calculatedDueDate = DateUtils.calculateNextDueDate(baseDueDate, task.intervalValue, task.intervalUnit);
             ContentValues taskValues = new ContentValues();
             taskValues.put("next_due_date", calculatedDueDate);
             int updatedRows = db.update(DbHelper.TABLE_TASKS, taskValues, "id=?", new String[]{String.valueOf(task.id)});
